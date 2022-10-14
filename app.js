@@ -4,8 +4,9 @@ const ort = require('onnxruntime-node');
 const express = require('express')
 const cors = require('cors')
 
+const scaleOut = require('./scalers')
+
 const app = express()
-const utils = require('./utils')
 
 app.use(express.json())
 app.use(cors())
@@ -17,30 +18,30 @@ app.get('/', (req, res) => {
 
 app.get('/predict/:area', async (req, res) => {
 	// create inference session
-	const session = await ort.InferenceSession.create('./model/single_lstm-new.onnx')
+	var session = await ort.InferenceSession.create('./model/main_model.onnx')
 
 	// convert url parameters to float
-	const area = parseFloat(req.params.area)
+	var x = parseFloat(req.params.area)
 
-	// normalize the input
-	const normArea = (area - 200) / (2000 - 200)
-
-	// store to an array
-	const data = [[normArea]]
+	// normalize the inputs
+	var x_arr = new Array(8).fill((x - 200) / (2000 - 200))
 
 	// convert data array to tensor
-	const tensorData = new ort.Tensor('float32', data, [1, 1])
+	var x_tensor = new ort.Tensor('float32', x_arr, [1, 8])
 	
 	// create feed object
-	const feeds = { actual_input: tensorData }
+	var feeds = { actual_input: x_tensor }
 
 	// run forward pass
-	const results = await session.run(feeds)
+	var results = await session.run(feeds)
 
 	// get the output
-	const output = results.output.data
+	var output = results.output.data
 
-	res.json({ result: output[0] })
+	// scale the output
+	var output_s = scaleOut(output)
+
+	res.json(output_s)
 })
 
 const PORT = process.env.PORT || 8080
